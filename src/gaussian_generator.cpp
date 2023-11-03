@@ -8,8 +8,6 @@
 #include "gaussian_generator/SingleGaussian.h"
 #include "gaussian_generator/MultiGaussians.h"
 
-// #include <gaussian_generator/SingleGaussian.h>
-// #include <gaussian_generator/MultiGaussians.h>
 #include <message_filters/subscriber.h>
 #include <message_filters/sync_policies/approximate_time.h>
 #include <message_filters/sync_policies/exact_time.h>
@@ -107,7 +105,7 @@ void PedOdomCallback(const pedsim_msgs::AgentStates::ConstPtr& crowd ,const sens
                                                 pi
                                                 );
                         uint8_t uintValue = static_cast<uint8_t>(value);
-                        single_gaussian_.data.push_back(value);
+                        single_gaussian_.data.push_back(uintValue);
                     }
                 }
                 
