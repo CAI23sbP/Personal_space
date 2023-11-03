@@ -106,7 +106,7 @@ void PedOdomCallback(const pedsim_msgs::AgentStates::ConstPtr& crowd ,const sens
                                                 theta, 
                                                 pi
                                                 );
-                        // uint8_t uintValue = static_cast<uint8_t>(value);
+                        uint8_t uintValue = static_cast<uint8_t>(value);
                         single_gaussian_.data.push_back(value);
                     }
                 }
