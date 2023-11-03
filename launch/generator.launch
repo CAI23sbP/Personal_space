@@ -1,0 +1,15 @@
+<launch>
+
+  <arg name="ns" default='sim_1'/>
+  <arg name="model" default="burger"/>
+
+  <node name="gaussian_generator_node" type="gaussian_generator_node" pkg="gaussian_generator" >
+    <remap from="/odom"             to="/$(arg ns)/odom"/>
+    <remap from="/scan"             to="/$(arg ns)/scan"/>
+    <remap from="/clock"             to="/$(arg ns)/clock"/>
+    <remap from="/pedsim_simulator/simulated_agents"             to="/$(arg ns)/pedsim_simulator/simulated_agents"/>
+    
+    <param name="/frame_id"    value="$(arg ns)_$(arg model)/base_footprint"/>
+  </node>
+
+</launch>
