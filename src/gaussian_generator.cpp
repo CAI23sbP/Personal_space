@@ -17,131 +17,123 @@
 
 ros::Publisher gau_pub_;
 std::string p_frame_id_;
-
-void RobustNormalize(int image_size , std::vector<std::vector<float>>& Z, float epsilon)
-{
+int image_size_ ;
 
 
-    for (int i = 0; i < image_size; ++i) {
-        for (int j = 0; j < image_size; ++j) {
-            if (Z[i][j] <= 0.1) {
-                Z[i][j] = 0.0;
-            }
-        }
-    }
-    for (int i = 0; i < image_size; ++i) {
-        for (int j = 0; j < image_size; ++j) {
-            Z[i][j] = (Z[i][j] - 0.5) / (0.75 + epsilon - 0.25);
-        }
-    }
-
-
-}
-
-float AsymmetryGaussian(float x,float y, float vx, float vy ,float xc, float yc, float sig_h,float sig_s,float sig_r ,float theta)
+float AsymmetryGaussian(
+                        float dx, 
+                        float dy, 
+                        float sig_h,
+                        float sig_s,
+                        float sig_r ,
+                        float theta,
+                        float pi
+                        )
 {   
-    float alpha = atan2(y - yc, x - xc) - theta + M_PI / 2;
-    alpha = fmod((alpha + M_PI), (2 * M_PI)) - M_PI;
-    float sig = (alpha <= 0) ? sig_r : sig_h;
-    float a = pow(cos(theta), 2) / (2 * pow(sig, 2)) + pow(sin(theta), 2) / (2 * pow(sig_s, 2));
-    float b = sin(2 * theta) / (4 * pow(sig, 2)) - sin(2 * theta) / (4 * pow(sig_s, 2));
-    float c = pow(sin(theta), 2) / 2 * pow(sig, 2) + pow(cos(theta), 2) / (2 * pow(sig_s, 2));
 
-    return exp(-(a * pow(x - xc, 2) + 2 * b * (x - xc) * (y - yc) + c * pow(y - yc, 2)));
+    float alpha = std::atan2(dy,dx) - theta  + pi/2;
+    alpha = std::fmod((alpha + pi),(2 * pi) ) - pi;
+    float sig = (alpha <= 0) ? sig_h : sig_r;
+    // #(math.pow(math.cos(theta),2) / (2 * math.pow(sig,2)) )+ (math.pow(math.sin(theta),2) / (2 * math.pow(sig_s,2)))
+    float a = std::pow(std::cos(theta), 2) / (2 * std::pow(sig, 2)) + std::pow(std::sin(theta), 2) / (2 * std::pow(sig_s, 2));
+    // (math.sin(2 * theta)) / (4 * math.pow(sig,2)) - (math.sin(2 * theta)) / (4 * math.pow(sig_s,2))
+    float b = std::sin(2 * theta) / (4 * std::pow(sig, 2)) - std::sin(2 * theta) / (4 * std::pow(sig_s, 2));
+    
+    // math.pow(math.sin(theta),2) / (2 * math.pow(sig,2)) + math.pow(math.cos(theta),2) / (2 * math.pow(sig_s,2))
+
+    float c = std::pow(std::sin(theta), 2) / (2 * std::pow(sig, 2)) + std::pow(std::cos(theta), 2) / (2 * std::pow(sig_s, 2));
+    // math.exp(-(a * math.pow(dx,2) + 2 * b * dx * dy + c * math.pow(dy,2)))*100
+    return exp(-( a * std::pow(dx, 2) + 2 * b * dx * dy + c * std::pow(dy, 2) ) )*100;
 }
 
 void PedOdomCallback(const pedsim_msgs::AgentStates::ConstPtr& crowd ,const sensor_msgs::LaserScan::ConstPtr& scan, const nav_msgs::Odometry::ConstPtr& odom)
 {   
-    float X = 0;
-    float Y = 0;
+    float dY = 0;
+    float dX = 0;
     float Vx = 0;
     float Vy = 0;
     float default_ = 0.5; 
     float range =  scan->range_max; 
-    int image_size = 30; // Replace with your desired image size
-    float epsilon = 1e-6; // Small epsilon value
+    int image_size = image_size_; // Replace with your desired image size
     int num = crowd->agent_states.size();
     gaussian_generator::MultiGaussians multi_gaussian_;
-
+    float pi = M_PI ;
     multi_gaussian_.header.frame_id = p_frame_id_;
     multi_gaussian_.header.stamp = ros::Time::now();
     multi_gaussian_.size = image_size;
+    float value  =0 ;
 
     if (num > 0)
-        for(unsigned int j=0; j<num ;j++)
+        for(unsigned int k=0; k<num ;k++)
         {   
             gaussian_generator::SingleGaussian single_gaussian_; 
-            X = crowd->agent_states[j].pose.position.x - odom->pose.pose.position.x;
-            Y = crowd->agent_states[j].pose.position.x - odom->pose.pose.position.y;
-            std::vector<std::vector<float>> Z(image_size, std::vector<float>(image_size, 0.0));
-            if (sqrt(X*X + Y*Y)<range) 
+            dX = crowd->agent_states[k].pose.position.x - odom->pose.pose.position.x;
+            dY = crowd->agent_states[k].pose.position.y - odom->pose.pose.position.y;
+         
+            
+            if (sqrt(std::pow(dX,2) + std::pow(dY,2))<range) 
             {
-                Vx = crowd->agent_states[j].twist.linear.x;
-                Vy = crowd->agent_states[j].twist.linear.y;
-                
+                Vx = crowd->agent_states[k].twist.linear.x;
+                Vy = crowd->agent_states[k].twist.linear.y;
 
-                float norm = sqrt(pow(Vx, 2) + pow(Vy, 2));
-                float radian = atan2(Vx, Vy);
-                float sig_h = std::max(2 * norm,default_ );
+                float norm = sqrt(std::pow(Vx, 2) + std::pow(Vy, 2));
+                float theta = std::atan2(Vy ,Vx);
+                float sig_h = std::max(2 * norm, default_ );
                 float sig_s = (2.0 / 3) * sig_h;
                 float sig_r = 0.5 * sig_h;
                 
-                for (int i = 0; i < image_size; ++i) {
-                    for (int j = 0; j < image_size; ++j) {
-                        float x = -5.0 + (i * 10.0) / (image_size - 1) + Y;
-                        float y = -5.0 + (j * 10.0) / (image_size - 1) + X;
-                        Z[i][j] = AsymmetryGaussian(x, y, Vx, Vy, X, Y,sig_h, sig_s,sig_r, radian);
-                    }
-                }
-                
-                RobustNormalize(image_size,Z,epsilon);
-                
-                single_gaussian_.center.x = X;
-                single_gaussian_.center.y = Y;
-                single_gaussian_.center.theta = radian;
+               
+                single_gaussian_.center.x = dX;
+                single_gaussian_.center.y = dY;
+                single_gaussian_.center.theta = theta;
                 single_gaussian_.velocity.x = Vx;
-                single_gaussian_.velocity.x = Vy;
-                for (const std::vector<float>& row : Z) {
-                    for (float value : row) {
+                single_gaussian_.velocity.y = Vy;
+            
+                
+                for (int i = 0; i < image_size; ++i) 
+                {
+                    float y = -5.0 + (i * 10.0) / (image_size - 1);
+
+                    for (int j = 0; j < image_size; ++j) 
+                    {
+                        float x = -5.0 + (j * 10.0) / (image_size - 1) ;
+                        value = AsymmetryGaussian(
+                                                x,
+                                                y,  
+                                                sig_h, 
+                                                sig_s, 
+                                                sig_r, 
+                                                theta, 
+                                                pi
+                                                );
+                        // uint8_t uintValue = static_cast<uint8_t>(value);
                         single_gaussian_.data.push_back(value);
                     }
                 }
+                
                 multi_gaussian_.gaussian.push_back(single_gaussian_);
             } 
             else
             {   
                 
-                X = 0;
-                Y = 0; 
-                Vx = 0;
-                Vy = 0;
 
-                float norm = sqrt(pow(Vx, 2) + pow(Vy, 2));
-                float radian = atan2(Vx, Vy);
-                float sig_h = std::max(2 * norm,default_ );
-                float sig_s = (2.0 / 3) * sig_h;
-                float sig_r = 0.5 * sig_h;
+                single_gaussian_.center.x = 0;
+                single_gaussian_.center.y = 0;
+                single_gaussian_.center.theta = 0;
+                single_gaussian_.velocity.x = 0;
+                single_gaussian_.velocity.y = 0;
+                for (int i = 0; i < image_size; ++i)
+                {
+                    float y = -5.0 + (i * 10.0) / (image_size - 1) ;
 
-                for (int i = 0; i < image_size; ++i) {
-                    for (int j = 0; j < image_size; ++j) {
-                        float x = -5.0 + (i * 10.0) / (image_size - 1) + Y;
-                        float y = -5.0 + (j * 10.0) / (image_size - 1) + X;
-                        Z[i][j] = AsymmetryGaussian(x, y, Vx, Vy, X, Y,sig_h, sig_s,sig_r, radian);
+                    for (int j = 0; j < image_size; ++j) 
+                    {
+                        float x = -5.0 + (j * 10.0) / (image_size - 1) ;
+                        uint8_t uintValue = static_cast<uint8_t>(0.0);
+                        single_gaussian_.data.push_back(uintValue);
                     }
                 }
                 
-                RobustNormalize(image_size,Z,epsilon);
-
-                single_gaussian_.center.x = X;
-                single_gaussian_.center.y = Y;
-                single_gaussian_.center.theta = 0;
-                single_gaussian_.velocity.x = Vx;
-                single_gaussian_.velocity.x = Vy;
-                for (const std::vector<float>& row : Z) {
-                    for (float value : row) {
-                        single_gaussian_.data.push_back(value);
-                    }
-                }
                 multi_gaussian_.gaussian.push_back(single_gaussian_);
 
             }
@@ -149,38 +141,26 @@ void PedOdomCallback(const pedsim_msgs::AgentStates::ConstPtr& crowd ,const sens
 
     else
     {   
-        std::vector<std::vector<float>> Z(image_size, std::vector<float>(image_size, 0.0));
-        for(unsigned int j=0; j<5 ;j++)
+        for(unsigned int k=0; k<5 ;k++)
         { 
             gaussian_generator::SingleGaussian single_gaussian_; 
-            X = 0;
-            Y = 0; 
-            Vx = 0;
-            Vy = 0;
-
-            float norm = sqrt(pow(Vx, 2) + pow(Vy, 2));
-            float radian = atan2(Vx, Vy);
-            float sig_h = std::max(2 * norm,default_ );
-            float sig_s = (2.0 / 3) * sig_h;
-            float sig_r = 0.5 * sig_h;
-
-            for (int i = 0; i < image_size; ++i) {
-                for (int j = 0; j < image_size; ++j) {
-                    float x = -5.0 + (i * 10.0) / (image_size - 1) + Y;
-                    float y = -5.0 + (j * 10.0) / (image_size - 1) + X;
-                    Z[i][j] = AsymmetryGaussian(x, y, Vx, Vy, X, Y,sig_h, sig_s,sig_r, radian);
-                }
-            }
-            single_gaussian_.center.x = X;
-            single_gaussian_.center.y = Y;
+            single_gaussian_.center.x = 0;
+            single_gaussian_.center.y = 0;
             single_gaussian_.center.theta = 0;
-            single_gaussian_.velocity.x = Vx;
-            single_gaussian_.velocity.x = Vy;
-            for (const std::vector<float>& row : Z) {
-                for (float value : row) {
-                    single_gaussian_.data.push_back(value);
+            single_gaussian_.velocity.x = 0;
+            single_gaussian_.velocity.y = 0;
+            for (int i = 0; i < image_size; ++i) 
+            {
+                float y = -5.0 + (i * 10.0) / (image_size - 1);
+
+                for (int j = 0; j < image_size; ++j) 
+                {
+                    float x = -5.0 + (j * 10.0) / (image_size - 1);
+                    uint8_t uintValue = static_cast<uint8_t>(0.0);
+                    single_gaussian_.data.push_back(uintValue);
                 }
             }
+            
             multi_gaussian_.gaussian.push_back(single_gaussian_);
 
         }
@@ -192,7 +172,6 @@ void PedOdomCallback(const pedsim_msgs::AgentStates::ConstPtr& crowd ,const sens
 int main(int argc, char** argv)
 {
     ros::init(argc,argv,"asymmetric_gaussian_generator");
-    // ros::NodeHandle public_nh("");
     ros::NodeHandle nh;
 
     //TODO
@@ -202,6 +181,7 @@ int main(int argc, char** argv)
     message_filters::TimeSynchronizer<pedsim_msgs::AgentStates, sensor_msgs::LaserScan, nav_msgs::Odometry> sync(ped_sub,scan_sub, odom_sub, 10);
     sync.registerCallback(boost::bind(&PedOdomCallback, _1, _2,_3));
     nh.param<std::string>("/frame_id", p_frame_id_, "base_footprint");
+    nh.param<int>("/image_size", image_size_, 100);
     gau_pub_ = nh.advertise<gaussian_generator::MultiGaussians>("/gaussian_status", 1);
 
     ros::spin(); 
