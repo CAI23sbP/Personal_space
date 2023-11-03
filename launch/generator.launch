@@ -10,7 +10,7 @@
     <remap from="/pedsim_simulator/simulated_agents"             to="/$(arg ns)/pedsim_simulator/simulated_agents"/>
     
     <param name="/frame_id"    value="$(arg ns)_$(arg model)/base_footprint"/>
-    <param name="/image_size"    value="30"/>
+    <param name="/image_size"    value="30" type="int"/>
   </node>
 
 </launch>
