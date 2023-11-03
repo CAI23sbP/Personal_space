@@ -1,6 +1,6 @@
 <launch>
 
-  <arg name="ns" default='sim_1'/>
+  <arg name="ns" default='eval_1'/>
   <arg name="model" default="burger"/>
 
   <node name="gaussian_generator_node" type="gaussian_generator_node" pkg="gaussian_generator" >
@@ -10,6 +10,7 @@
     <remap from="/pedsim_simulator/simulated_agents"             to="/$(arg ns)/pedsim_simulator/simulated_agents"/>
     
     <param name="/frame_id"    value="$(arg ns)_$(arg model)/base_footprint"/>
+    <param name="/image_size"    value="30"/>
   </node>
 
 </launch>
