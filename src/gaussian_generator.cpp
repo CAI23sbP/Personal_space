@@ -59,7 +59,7 @@ void PedOdomCallback(const pedsim_msgs::AgentStates::ConstPtr& crowd ,const sens
     multi_gaussian_.header.frame_id = p_frame_id_;
     multi_gaussian_.header.stamp = ros::Time::now();
     multi_gaussian_.size = image_size;
-    float value  =0 ;
+    float value  = 0 ;
 
     if (num > 0)
         for(unsigned int k=0; k<num ;k++)
@@ -171,6 +171,7 @@ int main(int argc, char** argv)
 {
     ros::init(argc,argv,"asymmetric_gaussian_generator");
     ros::NodeHandle nh;
+    ros::NodeHandle nh_priv("~");
 
     //TODO
     message_filters::Subscriber<pedsim_msgs::AgentStates> ped_sub(nh,"pedsim_simulator/simulated_agents",1);
@@ -178,8 +179,8 @@ int main(int argc, char** argv)
     message_filters::Subscriber<nav_msgs::Odometry> odom_sub(nh,"odom",1);
     message_filters::TimeSynchronizer<pedsim_msgs::AgentStates, sensor_msgs::LaserScan, nav_msgs::Odometry> sync(ped_sub,scan_sub, odom_sub, 10);
     sync.registerCallback(boost::bind(&PedOdomCallback, _1, _2,_3));
-    nh.param<std::string>("/frame_id", p_frame_id_, "base_footprint");
-    nh.param<int>("/image_size", image_size_, 100);
+    nh_priv.param<std::string>("frame_id", p_frame_id_, "base_footprint");
+    nh_priv.param<int>("image_size", image_size_, 100);
     gau_pub_ = nh.advertise<gaussian_generator::MultiGaussians>("/gaussian_status", 1);
 
     ros::spin(); 
